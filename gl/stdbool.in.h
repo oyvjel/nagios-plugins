@@ -1,4 +1,4 @@
-/* Copyright (C) 2001-2003, 2006-2013 Free Software Foundation, Inc.
+/* Copyright (C) 2001-2003, 2006-2018 Free Software Foundation, Inc.
    Written by Bruno Haible <haible@clisp.cons.org>, 2001.
 
    This program is free software; you can redistribute it and/or modify
@@ -12,10 +12,10 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program; if not, see <http://www.gnu.org/licenses/>.  */
+   along with this program; if not, see <https://www.gnu.org/licenses/>.  */
 
-#ifndef NAGIOS_GL_STDBOOL_H_INCLUDED
-#define NAGIOS_GL_STDBOOL_H_INCLUDED
+#ifndef _GL_STDBOOL_H
+#define _GL_STDBOOL_H
 
 /* ISO C 99 <stdbool.h> for platforms that lack it.  */
 
@@ -82,9 +82,9 @@ typedef bool _Bool;
    /* If @HAVE__BOOL@:
         Some HP-UX cc and AIX IBM C compiler versions have compiler bugs when
         the built-in _Bool type is used.  See
-          http://gcc.gnu.org/ml/gcc-patches/2003-12/msg02303.html
-          http://lists.gnu.org/archive/html/bug-coreutils/2005-11/msg00161.html
-          http://lists.gnu.org/archive/html/bug-coreutils/2005-10/msg00086.html
+          https://gcc.gnu.org/ml/gcc-patches/2003-12/msg02303.html
+          https://lists.gnu.org/r/bug-coreutils/2005-11/msg00161.html
+          https://lists.gnu.org/r/bug-coreutils/2005-10/msg00086.html
         Similar bugs are likely with other compilers as well; this file
         wouldn't be used if <stdbool.h> was working.
         So we override the _Bool type.
@@ -129,4 +129,4 @@ typedef enum { _Bool_must_promote_to_int = -1, false = 0, true = 1 } _Bool;
 
 #define __bool_true_false_are_defined 1
 
-#endif /* NAGIOS_GL_STDBOOL_H_INCLUDED */
+#endif /* _GL_STDBOOL_H */

@@ -1,6 +1,6 @@
 /*  Take file names apart into directory and base names.
 
-    Copyright (C) 1998, 2001, 2003-2006, 2009-2013 Free Software Foundation,
+    Copyright (C) 1998, 2001, 2003-2006, 2009-2018 Free Software Foundation,
     Inc.
 
     This program is free software: you can redistribute it and/or modify
@@ -14,10 +14,10 @@
     GNU General Public License for more details.
 
     You should have received a copy of the GNU General Public License
-    along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
+    along with this program.  If not, see <https://www.gnu.org/licenses/>.  */
 
-#ifndef NAGIOS_DIRNAME_H_INCLUDED
-#define NAGIOS_DIRNAME_H_INCLUDED
+#ifndef DIRNAME_H_
+# define DIRNAME_H_ 1
 
 # include <stdbool.h>
 # include <stddef.h>
@@ -31,8 +31,12 @@
 #  define DOUBLE_SLASH_IS_DISTINCT_ROOT 0
 # endif
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 # if GNULIB_DIRNAME
-char *base_name (char const *file);
+char *base_name (char const *file) _GL_ATTRIBUTE_MALLOC;
 char *dir_name (char const *file);
 # endif
 
@@ -43,4 +47,8 @@ char *last_component (char const *file) _GL_ATTRIBUTE_PURE;
 
 bool strip_trailing_slashes (char *file);
 
-#endif /* not NAGIOS_DIRNAME_H_INCLUDED */
+#ifdef __cplusplus
+} /* extern "C" */
+#endif
+
+#endif /* not DIRNAME_H_ */

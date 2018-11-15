@@ -33,9 +33,9 @@
 
 #include "common.h"
 #include "utils.h"
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <netdb.h>
+//#include <netinet/in.h>
+//#include <arpa/inet.h>
+//#include <netdb.h>
 
 #ifdef HAVE_SYS_UN_H
 # include <sys/un.h>
@@ -44,6 +44,27 @@
 #  define UNIX_PATH_MAX 104
 # endif /* UNIX_PATH_MAX */
 #endif /* HAVE_SYS_UN_H */
+
+#ifdef _WIN32
+#include <windows.h>
+
+/* this code only works on win2000, XP, Vista, 7 and up */
+/* win95, win98 and ME are not supported                */
+/* WINVER must have value 0x500 or higher               */
+#ifndef WINVER
+#define WINVER 0x500
+#endif
+
+#if WINVER < 0x500
+#error "WINVER is < 0x500, cannot compile for old windows versions"
+#endif
+
+#endif
+
+int start_timer(int, void (*)(int));
+void stop_timer(void);
+
+int oj_sockets_startup (void);   
 
 /* process_request and wrapper macros */
 #define process_tcp_request(addr, port, sbuf, rbuf, rsize) \

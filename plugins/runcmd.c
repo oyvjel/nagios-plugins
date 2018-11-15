@@ -282,11 +282,11 @@ runcmd_timeout_alarm_handler (int signo)
 		}
 		write(STDOUT_FILENO, msg, sizeof(msg) - 1);
 	}
-
+#ifdef OJ
 	if(np_pids) for(i = 0; i < maxfd; i++) {
 		if(np_pids[i] != 0) kill(np_pids[i], SIGKILL);
 	}
-
+#endif
 	exit (timeout_state);
 }
 

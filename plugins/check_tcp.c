@@ -38,7 +38,11 @@ const char *email = "devel@nagios-plugins.org";
 #include "utils_tcp.h"
 
 #include <ctype.h>
-#include <sys/select.h>
+
+// #ifdef OJ
+//#include <sys/select.h>
+//#define NP_VERSION 1
+// #endif
 
 #ifdef HAVE_SSL
 static int check_cert = FALSE;
@@ -92,7 +96,8 @@ static int match_flags = NP_MATCH_EXACT;
 #define FLAG_TIME_WARN 0x04
 #define FLAG_TIME_CRIT 0x08
 #define FLAG_HIDE_OUTPUT 0x10
-static size_t flags;
+
+size_t flags;
 
 int
 main (int argc, char **argv)
@@ -118,6 +123,7 @@ main (int argc, char **argv)
 	else progname = argv[0];
 
 	len = strlen(progname);
+   // TODO: Should remove .exe if present.
 	if(len > 6 && !memcmp(progname, "check_", 6)) {
 		SERVICE = strdup(progname + 6);
 		for(i = 0; i < len - 6; i++)
@@ -210,14 +216,18 @@ main (int argc, char **argv)
 	server_send = SEND;
 	server_quit = QUIT;
 	status = NULL;
+   
+   oj_sockets_startup();  /* Windows hack */
 
+   vb_printf("Parse extra opts for service %s\n", SERVICE);
 	/* Parse extra opts if any */
 	argv=np_extra_opts (&argc, argv, progname);
+   vb_printf("Process args\n");
 
 	if (process_arguments (argc, argv) == ERROR)
 		usage4 (_("Could not parse arguments"));
-
-	if(flags & FLAG_VERBOSE) {
+   vb_printf("STILL ALIVE?\n");
+	if( flags & FLAG_VERBOSE) {
 		printf("Using service %s\n", SERVICE);
 		printf("Port: %d\n", server_port);
 		printf("flags: 0x%x\n", (int)flags);
@@ -231,15 +241,24 @@ main (int argc, char **argv)
 	}
 
 	/* set up the timer */
-	signal (SIGALRM, socket_timeout_alarm_handler);
-	alarm (timeout_interval);
-
+   vb_printf("Set up timer to abort after %d sek\n",timeout_interval);
+//	signal (SIGALRM, socket_timeout_alarm_handler);
+//	alarm (timeout_interval);
+        if(start_timer(timeout_interval*1000, &socket_timeout_alarm_handler)){
+	   printf("\n timer start error\n");
+//	   return(1);
+	}
+   
 	/* try to connect to the host at the given port number */
+   vb_printf("Get time\n");
 	gettimeofday (&tv, NULL);
 
+   vb_printf("Connect to %s\n",server_address);
 	result = np_net_connect (server_address, server_port, &sd, PROTOCOL);
-	if (result == STATE_CRITICAL) return STATE_CRITICAL;
-
+   vb_printf("Connection result = %d ( Critical = %d )\n",result, STATE_CRITICAL);
+//	if (result == STATE_CRITICAL) return STATE_CRITICAL;
+	if (result != STATE_OK) die(result, "%s - %s. %s",SERVICE, state_text(result), strerror(errno));
+       
 #ifdef HAVE_SSL
 	if (flags & FLAG_SSL){
 		result = np_net_ssl_init_with_hostname(sd, server_name);
@@ -253,11 +272,11 @@ main (int argc, char **argv)
 		return result;
 	}
 #endif /* HAVE_SSL */
-
+   vb_printf("Trying to send  = %s\n",server_send);
 	if (server_send != NULL &&  strlen(server_send) > my_send(server_send, strlen(server_send))) {		/* Something to send? and validate return*/
 		die(STATE_UNKNOWN, "%s - %s", _("No data sent to host"), strerror(errno));
 	}
-
+   vb_printf("Data sent\n");
 	if (delay > 0) {
 		tv.tv_sec += delay;
 		sleep (delay);
@@ -278,14 +297,14 @@ main (int argc, char **argv)
 	/* if(len) later on, we know we have a non-NULL response */
 	len = 0;
 	if (server_expect_count) {
-
+		vb_printf("Reading from socket: %d\n", sd);
 		/* watch for the expect string */
 		while ((i = my_recv(buffer, sizeof(buffer))) > 0) {
 			status = realloc(status, len + i + 1);
 			memcpy(&status[len], buffer, i);
 			len += i;
 			status[len] = '\0';
-
+			vb_printf("Read %d chars from socket. Status: %s\n", i,status);
 			/* stop reading if user-forced */
 			if (maxbytes && len >= maxbytes)
 				break;
@@ -300,9 +319,12 @@ main (int argc, char **argv)
 			FD_SET(sd, &rfds);
 			timeout.tv_sec  = READ_TIMEOUT;
 			timeout.tv_usec = 0;
+			vb_printf("Blocking on select for max %d sek\n",READ_TIMEOUT);
 			if(select(sd + 1, &rfds, NULL, NULL, &timeout) <= 0)
 				break;
+			vb_printf("Got more data\n");
 		}
+		vb_printf("Read finished after reading %d bytes. Status: \n%s\n",len,status);
 		if (match == NP_MATCH_RETRY)
 			match = NP_MATCH_FAILURE;
 
@@ -311,8 +333,7 @@ main (int argc, char **argv)
 			die (STATE_CRITICAL, _("No data received from host\n"));
 
 		/* print raw output if we're debugging */
-		if(flags & FLAG_VERBOSE)
-			printf("received %d bytes from host\n#-raw-recv-------#\n%s\n#-raw-recv-------#\n",
+	        vb_printf("received %d bytes from host\n#-raw-recv-------#\n%s\n#-raw-recv-------#\n",
 			       (int)len + 1, status);
 		/* strip whitespace from end of output */
 		while(--len > 0 && isspace(status[len]))
@@ -340,7 +361,8 @@ main (int argc, char **argv)
 		result = expect_mismatch_state;
 
 	/* reset the alarm */
-	alarm (0);
+//	alarm (0);
+        stop_timer();
 
 	/* this is a bit stupid, because we don't want to print the
 	 * response time (which can look ok to the user) if we didn't get

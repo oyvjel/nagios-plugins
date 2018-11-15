@@ -34,6 +34,7 @@
 static SSL_CTX *c=NULL;
 static SSL *s=NULL;
 static int initialized=0;
+BIO *cCBio = NULL;
 
 int np_net_ssl_init(int sd) {
 	return np_net_ssl_init_with_hostname(sd, NULL);
@@ -50,11 +51,12 @@ int np_net_ssl_init_with_hostname_and_version(int sd, char *host_name, int versi
 int np_net_ssl_init_with_hostname_version_and_cert(int sd, char *host_name, int version, char *cert, char *privkey) {
 	const SSL_METHOD *method = NULL;
 	long options = 0;	/*SSL_OP_ALL | SSL_OP_SINGLE_DH_USE;*/
+	vb_printf("INITIALIZING SSL to host %s with version %d\n",host_name,version);
 
 	switch (version) {
 	case MP_SSLv2: /* SSLv2 protocol */
 #if defined(USE_GNUTLS) || defined(OPENSSL_NO_SSL2)
-		printf("%s\n", _("UNKNOWN - SSL protocol version 2 is not supported by your SSL library."));
+		printf("%s\n", "UNKNOWN - SSL protocol version 2 is not supported by your SSL library.");
 		return STATE_UNKNOWN;
 #else
 		method = SSLv2_client_method();
@@ -145,23 +147,71 @@ int np_net_ssl_init_with_hostname_version_and_cert(int sd, char *host_name, int 
 		}
 #endif
 	}
+	if (SSL_CTX_set_cipher_list(c, "ALL:COMPLEMENTOFALL") == 0){
+	    vb_printf("Chipher list failure\n");
+	}
+ 
+	
 #ifdef SSL_OP_NO_TICKET
 	options |= SSL_OP_NO_TICKET;
 #endif
 	SSL_CTX_set_options(c, options);
 	SSL_CTX_set_mode(c, SSL_MODE_AUTO_RETRY);
 	if ((s = SSL_new(c)) != NULL) {
+   vb_printf("SSL struct pointer created with options %d\n",options);
+
+        	SSL_set_fd(s, sd);
+
+		// Connect socket and BIO
+//   vb_printf("Connect socket and BIO\n");
+//		cCBio = BIO_new_socket(sd, BIO_NOCLOSE);
+		// Connect SSL and BIO
+//   vb_printf("Connect socket and BIO\n");
+//		SSL_set_bio(s, cCBio, cCBio);
+
 #ifdef SSL_set_tlsext_host_name
-		if (host_name != NULL)
+		if (host_name != NULL){
+		  vb_printf("Set Host name\n");
 			SSL_set_tlsext_host_name(s, host_name);
+		}
 #endif
-		SSL_set_fd(s, sd);
-		if (SSL_connect(s) == 1) {
+
+	   vb_printf("SSL connect:\n");
+		
+	   int r;
+	   r = SSL_connect(s);
+//	   vb_printf("Initialize connect_state\n");
+	   /* Not properly initialized yet */
+//	   SSL_set_connect_state(s);
+	   
+//	   vb_printf("SSL handshake:\n");
+//	   r = SSL_do_handshake(s);
+	   
+	   
+	   
+	   
+		if (r == 1) {
+		   vb_printf("SSL connect OK \n");
 			return OK;
 		} else {
-			printf("%s\n", _("CRITICAL - Cannot make SSL connection."));
+			printf("CRITICAL - Cannot make SSL connection. Connect returned %d\n",r);
 #  ifdef USE_OPENSSL /* XXX look into ERR_error_string */
-			ERR_print_errors_fp(stdout);
+//			ERR_print_errors_fp(stdout);
+		   int err = SSL_get_error(s,r);
+		   vb_printf("SSL_get_error= %d\n",err);
+		   if( err == SSL_ERROR_SYSCALL )
+		     printf("SYSCALL ERROR,  errno: %d - %s\n", errno, strerror(errno));
+
+		   if((err = ERR_get_error())) 
+		     {
+			
+			        SSL_load_error_strings();
+			        ERR_load_crypto_strings();
+			        vb_printf("SSL connect err code:[%lu](%s)\n", err, ERR_error_string(err, NULL));
+			        vb_printf("Error is %s \n",ERR_reason_error_string(err));
+		     }
+		   
+		   
 #  endif /* USE_OPENSSL */
 		}
 	} else {

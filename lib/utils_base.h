@@ -2,7 +2,7 @@
 #define NAGIOS_UTILS_BASE_H_INCLUDED
 /* Header file for nagios plugins utils_base.c */
 
-#include "sha1.h"
+// #include "sha1.h"
 
 /* This file holds header information for thresholds - use this in preference to 
    individual plugin logic */
@@ -110,6 +110,11 @@ void np_cleanup();
 
 /* np_suid() returns true if the real and effective uids differs, such as when
 + * running a suid plugin */
-#define np_suid() (getuid() != geteuid())
+#ifdef _WIN32
+  #define np_suid() 0
+  #define geteuid() 0
+#else
+  #define np_suid() (getuid() != geteuid())
+#endif
 
 #endif /* NAGIOS_UTILS_BASE_H_INCLUDED */

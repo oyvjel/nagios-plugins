@@ -151,6 +151,8 @@ main (int argc, char **argv)
 {
   int result = STATE_UNKNOWN;
 
+  oj_sockets_startup();  /* Windows hack */
+
   setlocale (LC_ALL, "");
   bindtextdomain (PACKAGE, LOCALEDIR);
   textdomain (PACKAGE);
@@ -173,8 +175,13 @@ main (int argc, char **argv)
       server_port, server_url);
 
   /* initialize alarm signal handling, set socket timeout, start timer */
-  (void) signal (SIGALRM, socket_timeout_alarm_handler);
-  (void) alarm (timeout_interval);
+//  (void) signal (SIGALRM, socket_timeout_alarm_handler);
+//  (void) alarm (timeout_interval);
+   if(start_timer(timeout_interval*1000, &socket_timeout_alarm_handler)){
+      printf("\n timer start error\n");
+      //	   return(1);
+   }
+   
   gettimeofday (&tv, NULL);
 
   result = check_http ();
@@ -996,32 +1003,33 @@ check_http (void)
     /* we received -S for SSL, then we tunnel the request through a proxy*/
     /* @20100414, public[at]frank4dd.com, http://www.frank4dd.com/howto  */
 
-    if ( server_address != NULL && strcmp(http_method, "CONNECT") == 0
+   if ( server_address != NULL && strcmp(http_method, "CONNECT") == 0
       && host_name != NULL && use_ssl == TRUE) {
 
-    if (verbose) printf ("Entering CONNECT tunnel mode with proxy %s:%d to dst %s:%d\n", server_address, server_port, host_name, HTTPS_PORT);
-    asprintf (&buf, "%s %s:%d HTTP/1.1\r\n%s\r\n", http_method, host_name, HTTPS_PORT, user_agent);
-    asprintf (&buf, "%sProxy-Connection: keep-alive\r\n", buf);
-    asprintf (&buf, "%sHost: %s\r\n", buf, host_name);
-    /* we finished our request, send empty line with CRLF */
-    asprintf (&buf, "%s%s", buf, CRLF);
-    if (verbose) printf ("%s\n", buf);
-    send(sd, buf, strlen (buf), 0);
-    buf[0]='\0';
-
-    if (verbose) printf ("Receive response from proxy\n");
-    read (sd, buffer, MAX_INPUT_BUFFER-1);
-    if (verbose) printf ("%s", buffer);
-    /* Here we should check if we got HTTP/1.1 200 Connection established */
-  }
+      if (verbose) printf ("Entering CONNECT tunnel mode with proxy %s:%d to dst %s:%d\n", server_address, server_port, host_name, HTTPS_PORT);
+      asprintf (&buf, "%s %s:%d HTTP/1.1\r\n%s\r\n", http_method, host_name, HTTPS_PORT, user_agent);
+      asprintf (&buf, "%sProxy-Connection: keep-alive\r\n", buf);
+      asprintf (&buf, "%sHost: %s\r\n", buf, host_name);
+      /* we finished our request, send empty line with CRLF */
+      asprintf (&buf, "%s%s", buf, CRLF);
+      if (verbose) printf ("%s\n", buf);
+      send(sd, buf, strlen (buf), 0);
+      buf[0]='\0';
+      
+      if (verbose) printf ("Receive response from proxy\n");
+      read (sd, buffer, MAX_INPUT_BUFFER-1);
+      if (verbose) printf ("%s", buffer);
+      /* Here we should check if we got HTTP/1.1 200 Connection established */
+   }
 #ifdef HAVE_SSL
-  elapsed_time_connect = (double)microsec_connect / 1.0e6;
-  if (use_ssl == TRUE) {
+   elapsed_time_connect = (double)microsec_connect / 1.0e6;
+   if (use_ssl == TRUE) {
     gettimeofday (&tv_temp, NULL);
     result = np_net_ssl_init_with_hostname_version_and_cert(sd, (use_sni ? host_name : NULL), ssl_version, client_cert, client_privkey);
-    if (verbose) printf ("SSL initialized\n");
+    if (verbose) printf ("SSL initialized, result= %d\n",result);
     if (result != STATE_OK)
-      die (STATE_CRITICAL, NULL);
+      die (result, "SSL failed");
+//     die (STATE_CRITICAL, NULL);
     microsec_ssl = deltime (tv_temp);
     elapsed_time_ssl = (double)microsec_ssl / 1.0e6;
     if (check_cert == TRUE) {
@@ -1295,7 +1303,9 @@ check_http (void)
     die (STATE_CRITICAL, "HTTP CRITICAL - %s", msg);
 
   /* reset the alarm - must be called *after* redir or we'll never die on redirects! */
-  alarm (0);
+//  alarm (0);
+  stop_timer();
+
 
   if (maximum_age >= 0) {
     result = max_state_alt(check_document_dates(header, &msg), result);
@@ -1307,7 +1317,7 @@ check_http (void)
     if (!strstr (header, header_expect)) {
       strncpy(&output_header_search[0],header_expect,sizeof(output_header_search));
       if(output_header_search[sizeof(output_header_search)-1]!='\0') {
-        bcopy("...",&output_header_search[sizeof(output_header_search)-4],4);
+        memmove("...",&output_header_search[sizeof(output_header_search)-4],4);
       }
       xasprintf (&msg, _("%sheader '%s' not found on '%s://%s:%d%s', "), msg, output_header_search, use_ssl ? "https" : "http", host_name ? host_name : server_address, server_port, server_url);
       result = STATE_CRITICAL;
@@ -1318,7 +1328,7 @@ check_http (void)
     if (!strstr (page, string_expect)) {
       strncpy(&output_string_search[0],string_expect,sizeof(output_string_search));
       if(output_string_search[sizeof(output_string_search)-1]!='\0') {
-        bcopy("...",&output_string_search[sizeof(output_string_search)-4],4);
+        memmove("...",&output_string_search[sizeof(output_string_search)-4],4);
       }
       xasprintf (&msg, _("%sstring '%s' not found on '%s://%s:%d%s', "), msg, output_string_search, use_ssl ? "https" : "http", host_name ? host_name : server_address, server_port, server_url);
       result = STATE_CRITICAL;

@@ -28,7 +28,7 @@
 #include <stdarg.h>
 #include <limits.h>
 
-#include <arpa/inet.h>
+// #include <arpa/inet.h>
 
 extern void print_usage (void);
 extern const char *progname;
@@ -40,6 +40,31 @@ unsigned int timeout_state = STATE_CRITICAL;
 unsigned int timeout_interval = DEFAULT_SOCKET_TIMEOUT;
 
 time_t start_time, end_time;
+
+size_t flags;
+#define FLAG_VERBOSE 0x02
+int verbose;
+
+int vb_printf(char *fmt, ...)
+{
+   int result;
+   if( flags & FLAG_VERBOSE || verbose)
+     {   
+	va_list args;
+	va_start(args, fmt);
+//	fputs("Error: ", stderr);
+//	result = vfprintf(stderr, fmt, args);
+	result = vprintf(fmt, args);
+	va_end(args);
+	return result;
+     }
+   else 
+     {
+	return 0;
+     }
+}
+
+
 
 /* **************************************************************************
  * max_state(STATE_x, STATE_y)

@@ -31,6 +31,38 @@
 #ifndef NAGIOS_COMMON_H_INCLUDED
 #define NAGIOS_COMMON_H_INCLUDED
 
+// ØJ:
+//#include <strings.h>
+
+//#ifdef _POSIX
+//#ifdef __USE_MINGW_ALARM
+
+#include <getopt.h>
+
+#ifdef _WIN32
+#define SIGALRM 14  /* alarm clock */
+  #define WIN32_LEAN_AND_MEAN
+  #define VC_EXTRALEAN
+//  #define _WIN32_WINNT 0x0501
+  #include <windows.h>
+  #include <winsock2.h>
+  #include <ws2tcpip.h>
+  #include <stdint.h>
+  #ifndef ENABLE_VIRTUAL_TERMINAL_PROCESSING
+    #define ENABLE_VIRTUAL_TERMINAL_PROCESSING 0x0004
+  #endif
+// #else
+//  #include <netdb.h>
+//  #include <sys/socket.h>
+//  #include <sys/select.h>
+
+#endif
+//#endif
+// #define SIGALRM 14
+
+
+/////////////////
+
 #include "config.h"
 
 #ifdef HAVE_FEATURES_H
@@ -41,6 +73,17 @@
 #include <stdlib.h>
 #include <errno.h>
 
+#ifdef HAVE_CTYPE_H
+#include <ctype.h>
+#endif
+
+
+
+#ifdef HAVE_SYS_SELECT_H
+#include <sys/select.h>
+#endif
+
+
 /* This block provides uintmax_t - should be reported to coreutils that this should be added to fsuage.h */
 #if HAVE_INTTYPES_H
 # include <inttypes.h>
@@ -48,6 +91,7 @@
 #if HAVE_STDINT_H
 # include <stdint.h>
 #endif
+
 #include <unistd.h>
 #ifndef UINTMAX_MAX
 # define UINTMAX_MAX ((uintmax_t) -1)
@@ -114,14 +158,30 @@
 #endif
 
 /* GNU Libraries */
+#ifdef HAVE_GRTOPT_H
 #include <getopt.h>
+#endif
+//#include "getaddrinfo.h"
+
+#ifdef HAVE_OJ
+#include <regex.h>
+#include <netdb.h>
+#include <netinet/in.h>
+
+#include "gettext.h"
+#include "sha1.h"
+
+
 #include "dirname.h"
+#endif
 
 #include <locale.h>
 
 #ifdef HAVE_SYS_POLL_H
 # include "sys/poll.h"
 #endif
+
+#include "sha1.h"
 
 /*
  *
@@ -174,6 +234,10 @@
  *
  */
 
+#ifdef ERROR
+#  undef ERROR
+#endif
+
 enum {
 	OK = 0,
 	ERROR = -1
@@ -206,8 +270,9 @@ enum {
  * Internationalization
  *
  */
-#include "gettext.h"
-#define _(String) gettext (String)
+// #include "gettext.h"
+//#define _(String) gettext (String)
+#define _(String) String
 #if ! ENABLE_NLS
 # undef textdomain
 # define textdomain(Domainname) /* empty */

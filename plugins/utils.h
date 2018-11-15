@@ -24,6 +24,8 @@ suite of plugins. */
 #define np_extra_opts(acptr,av,pr) av
 #endif
 
+int vb_printf(char *fmt, ...);
+
 /* Standardize version information, termination */
 
 void support (void);
@@ -93,8 +95,12 @@ const char *state_text (int);
 
 int parse_timeout_string (char *timeout_str);
 
+#ifndef max
 #define max(a,b) (((a)>(b))?(a):(b))
+#endif
+#ifndef min
 #define min(a,b) (((a)<(b))?(a):(b))
+#endif
 
 char *perfdata (const char *, long int, const char *, int, long int,
                 int, long int, int, long int, int, long int);

@@ -29,6 +29,8 @@
 
 #include "common.h"
 #include "netutils.h"
+#include "utils.h"
+// #include <sys/select.h>
 
 int econn_refuse_state = STATE_CRITICAL;
 int was_refused = FALSE;
@@ -171,6 +173,46 @@ process_request (const char *server_address, int server_port, int proto,
 	return result;
 }
 
+static int initialized_sockets_version = 0 /* = 0 */;
+
+int oj_sockets_startup () {   
+//#if WINDOWS_SOCKETS
+#ifdef _WIN32   
+   int version =  0x0101;
+   if (version > initialized_sockets_version)
+     {
+	WSADATA data;
+	int err;
+	vb_printf("Initialize socket...");
+	err = WSAStartup (version, &data);
+	vb_printf(" Err = %d ...",err);
+	if (err != 0){
+	   vb_printf("WSAStartup failed with code %d", err);     
+	   return 1;
+	}
+	
+	if (data.wVersion != version)
+	  {
+	     vb_printf("WSAStartup version mismatch: %d != %d",data.wVersion, version );
+	     WSACleanup ();
+	     return 2;
+	  }
+	
+	//	      if (initialized_sockets_version == 0)
+	//	          register_fd_hook (close_fd_maybe_socket, ioctl_fd_maybe_socket,
+	//				                              &fd_sockets_hook);
+	
+	initialized_sockets_version = version;
+	vb_printf(" OK\n");
+	
+     }
+   
+#endif
+   return 0;
+}
+
+
+
 
 /* opens a tcp or udp connection to a remote host or local socket */
 int
@@ -178,7 +220,9 @@ np_net_connect (const char *host_name, int port, int *sd, int proto)
 {
 	struct addrinfo hints;
 	struct addrinfo *res, *orig_res;
-	struct sockaddr_un su;
+#ifndef _WIN32
+        struct sockaddr_un su;
+#endif
 	char port_str[6], host[MAX_HOST_ADDRESS_LENGTH];
 	size_t len;
 	int socktype, result;
@@ -204,6 +248,8 @@ np_net_connect (const char *host_name, int port, int *sd, int proto)
 		memcpy (host, host_name, len);
 		host[len] = '\0';
 		snprintf (port_str, sizeof (port_str), "%d", port);
+	   
+		  
 		result = getaddrinfo (host, port_str, &hints, &orig_res);
 
 		if (result != 0) {
@@ -248,6 +294,10 @@ np_net_connect (const char *host_name, int port, int *sd, int proto)
 	}
 	/* else the hostname is interpreted as a path to a unix socket */
 	else {
+#ifdef _WIN32
+	        die(STATE_UNKNOWN, _("Unix domain socket is not supported on this platform"));
+	}
+#else
 		if(strlen(host_name) >= UNIX_PATH_MAX){
 			die(STATE_UNKNOWN, _("Supplied path too long unix domain socket"));
 		}
@@ -262,21 +312,22 @@ np_net_connect (const char *host_name, int port, int *sd, int proto)
 		if (result < 0 && errno == ECONNREFUSED)
 			was_refused = TRUE;
 	}
-
+#endif
+   
 	if (result == 0)
 		return STATE_OK;
 	else if (was_refused) {
+	   if (is_socket)
+	     vb_printf("connect to file socket %s: %s\n", host_name, strerror(errno));
+	   else
+	     vb_printf("Failed connect to address %s and port %d. Error msg(%d): %s\n",
+				       host_name, port, errno, strerror(errno));
 		switch (econn_refuse_state) { /* a user-defined expected outcome */
 		case STATE_OK:
 		case STATE_WARNING:  /* user wants WARN or OK on refusal */
 			return econn_refuse_state;
 			break;
 		case STATE_CRITICAL: /* user did not set econn_refuse_state */
-			if (is_socket)
-				printf("connect to file socket %s: %s\n", host_name, strerror(errno));
-			else
-				printf("connect to address %s and port %d: %s\n",
-				       host_name, port, strerror(errno));
 			return econn_refuse_state;
 			break;
 		default: /* it's a logic error if we do not end up in STATE_(OK|WARNING|CRITICAL) */
@@ -286,9 +337,9 @@ np_net_connect (const char *host_name, int port, int *sd, int proto)
 	}
 	else {
 		if (is_socket)
-			printf("connect to file socket %s: %s\n", host_name, strerror(errno));
+			vb_printf("connect to file socket %s: %s\n", host_name, strerror(errno));
 		else
-			printf("connect to address %s and port %d: %s\n",
+			vb_printf("connect to address %s and port %d: %s\n",
 			       host_name, port, strerror(errno));
 		return STATE_CRITICAL;
 	}
@@ -380,10 +431,11 @@ resolve_host_or_addr (const char *address, int family)
 	struct addrinfo hints;
 	struct addrinfo *res;
 	int retval;
-
+   vb_printf("Resolving address %s in family %d\n",address,family);
 	memset (&hints, 0, sizeof (hints));
 	hints.ai_family = family;
 	retval = getaddrinfo (address, NULL, &hints, &res);
+   vb_printf("Getadrinfo result =  %d\n",retval);
 
 	if (retval != 0)
 		return FALSE;
@@ -392,3 +444,86 @@ resolve_host_or_addr (const char *address, int family)
 		return TRUE;
 	}
 }
+
+// Timer functions 
+// 
+
+void (*timer_func_handler_pntr)(int);
+
+#ifdef _WIN32
+// Windows implementation:
+HANDLE win_timer;
+VOID CALLBACK timer_sig_handler(PVOID, BOOLEAN);
+
+int start_timer(int mSec, void (*timer_func_handler)(int arg))
+{
+     timer_func_handler_pntr = timer_func_handler;
+     if(CreateTimerQueueTimer(&win_timer, NULL, (WAITORTIMERCALLBACK)timer_sig_handler, NULL, mSec, mSec, WT_EXECUTEINTIMERTHREAD) == 0)
+     {
+	    printf("\nCreateTimerQueueTimer() error\n");
+	    return(1);
+     }
+     return(0);
+}
+
+VOID CALLBACK timer_sig_handler(PVOID lpParameter, BOOLEAN TimerOrWaitFired)
+{
+   
+     timer_func_handler_pntr(SIGALRM);
+}
+
+void stop_timer(void)
+{
+     DeleteTimerQueueTimer(NULL, win_timer, NULL);
+     CloseHandle(win_timer);
+}
+
+#else
+// Unix impl:
+// void timer_handler(int);
+struct itimerval timervalue;
+struct sigaction new_handler, old_handler;
+void timer_sig_handler(int);
+
+int start_timer(int mSec, void (*timer_func_handler)(int arg))
+{
+     timer_func_handler_pntr = timer_func_handler;
+   
+     timervalue.it_interval.tv_sec = mSec / 1000;
+     timervalue.it_interval.tv_usec = (mSec % 1000) * 1000;
+     timervalue.it_value.tv_sec = mSec / 1000;
+     timervalue.it_value.tv_usec = (mSec % 1000) * 1000;
+     if(setitimer(ITIMER_REAL, &timervalue, NULL))
+     {
+	    printf("\nsetitimer() error\n");
+	    return(1);
+     }
+   
+     new_handler.sa_handler = &timer_sig_handler;
+     new_handler.sa_flags = SA_NOMASK;
+     if(sigaction(SIGALRM, &new_handler, &old_handler))
+     {
+	    printf("\nsigaction() error\n");
+	    return(1);
+     }
+   
+     return(0);
+}
+
+void timer_sig_handler(int arg)
+{
+     timer_func_handler_pntr(arg);
+}
+
+void stop_timer(void)
+{
+     timervalue.it_interval.tv_sec = 0;
+     timervalue.it_interval.tv_usec = 0;
+     timervalue.it_value.tv_sec = 0;
+     timervalue.it_value.tv_usec = 0;
+     setitimer(ITIMER_REAL, &timervalue, NULL);
+   
+     sigaction(SIGALRM, &old_handler, NULL);
+}
+#endif
+

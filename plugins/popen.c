@@ -57,7 +57,10 @@ RETSIGTYPE popen_timeout_alarm_handler (int);
 #include <fcntl.h>
 
 #include <limits.h>
+
+#ifdef OJ
 #include <sys/resource.h>
+#endif
 
 #ifdef HAVE_SYS_WAIT_H
 #include <sys/wait.h>
@@ -95,6 +98,7 @@ static volatile int childtermd = 0;
 FILE *
 spopen (const char *cmdstring)
 {
+#ifdef OJ
 	char *env[2];
 	char *cmd = NULL;
 	char **argv = NULL;
@@ -240,11 +244,13 @@ spopen (const char *cmdstring)
 	childpid[fileno (child_process)] = pid;	/* remember child pid for this fd */
 	child_stderr_array[fileno (child_process)] = pfderr[0];	/* remember STDERR */
 	return (child_process);
+#endif /* OJ*/
 }
 
 int
 spclose (FILE * fp)
 {
+#ifdef OJ   
 	int fd, status;
 	pid_t pid;
 
@@ -269,7 +275,7 @@ spclose (FILE * fp)
 
 	if (WIFEXITED (status))
 		return (WEXITSTATUS (status));	/* return child's termination status */
-
+#endif /* OJ */
 	return (1);
 }
 
@@ -294,6 +300,7 @@ popen_sigchld_handler (int signo)
 RETSIGTYPE
 popen_timeout_alarm_handler (int signo)
 {
+#ifdef OJ
 	int fh;
 	const char msg1[] = "CRITICAL - Plugin timed out\n";
 	const char msg2[] = "CRITICAL - popen timeout received, but no child process\n";
@@ -312,12 +319,14 @@ popen_timeout_alarm_handler (int signo)
 		}
 		exit (STATE_CRITICAL);
 	}
+#endif
 }
 
 
 int
 open_max (void)
 {
+#ifdef OJ
 	if (openmax == 0) {						/* first time through */
 		errno = 0;
 		if ((openmax = sysconf (_SC_OPEN_MAX)) < 0) {
@@ -328,6 +337,7 @@ open_max (void)
 		}
 	}
 	return (openmax);
+#endif
 }
 
 

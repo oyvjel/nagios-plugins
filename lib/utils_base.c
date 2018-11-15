@@ -127,7 +127,7 @@ range
 		str++;
 	}
 
-	end_str = index(str, ':');
+	end_str = strchr(str, ':');
 	if (end_str) {
 		if (str[0] == '~') {
 			temp_range->start_infinity = TRUE;
@@ -338,7 +338,7 @@ char *np_extract_value(const char *varlist, const char *name, char sep) {
 				/* strip leading spaces */
 				for (varlist; isspace(varlist[0]); varlist++);
 
-				if (tmp = index(varlist, sep)) {
+				if (tmp = strchr(varlist, sep)) {
 					/* Value is delimited by a comma */
 					if (tmp-varlist == 0) continue;
 					value = (char *)calloc(1, tmp-varlist+1);
@@ -354,7 +354,7 @@ char *np_extract_value(const char *varlist, const char *name, char sep) {
 				break;
 			}
 		}
-		if (tmp = index(varlist, sep)) {
+		if (tmp = strchr(varlist, sep)) {
 			/* More keys, keep going... */
 			varlist = tmp + 1;
 		} else {
@@ -662,9 +662,10 @@ void np_state_write_string(time_t data_time, char *data_string) {
 	fprintf(fp,"%d\n",this_nagios_plugin->state->data_version);
 	fprintf(fp,"%lu\n",current_time);
 	fprintf(fp,"%s\n",data_string);
-	
+
+#ifndef _WIN32	
 	fchmod(fd, S_IRUSR | S_IWUSR | S_IRGRP);
-	
+#endif	
 	fflush(fp);
 
 	result=fclose(fp);
